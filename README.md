@@ -37,9 +37,58 @@ You need one of the following:
 
 ---
 
-## Quick Start
+## Quick Start (Validated Workflow)
 
-### Option 1: Web UI (Recommended)
+This is the recommended way to get AutoCoder running. These steps have been validated to work reliably.
+
+### Step 1: Authenticate Claude Code (one-time setup)
+
+Open any terminal and run:
+```bash
+claude login
+```
+
+Follow the prompts to authenticate with your Claude Pro/Max subscription or API key.
+
+### Step 2: Launch AutoCoder UI
+
+**From any directory**, run Claude Code and ask it to start AutoCoder:
+
+```bash
+claude
+```
+
+Then in Claude Code, type:
+```
+cd /path/to/autocoder
+./start_ui.sh
+```
+
+Or run both commands directly:
+
+**macOS / Linux:**
+```bash
+cd /path/to/autocoder && ./start_ui.sh
+```
+
+**Windows:**
+```cmd
+cd C:\path\to\autocoder && start_ui.bat
+```
+
+### Step 3: Open the Web UI
+
+Navigate to **http://localhost:8888** in your browser.
+
+> **Note:** You do NOT need to start Claude Code from the autocoder directory. Claude Code can be launched from anywhere - just provide the full path to the autocoder folder when running the start script.
+
+---
+
+## Alternative Quick Start Methods
+
+### Option 1: Web UI (Direct)
+
+If you prefer to run outside of Claude Code:
 
 **Windows:**
 ```cmd
@@ -51,7 +100,7 @@ start_ui.bat
 ./start_ui.sh
 ```
 
-This launches the React-based web UI at `http://localhost:5173` with:
+This launches the React-based web UI at `http://localhost:8888` with:
 - Project selection and creation
 - Kanban board view of features
 - Real-time agent output streaming
