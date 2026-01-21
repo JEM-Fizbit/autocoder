@@ -78,7 +78,7 @@ cd C:\path\to\autocoder && start_ui.bat
 
 ### Step 3: Open the Web UI
 
-Navigate to **http://localhost:8888** in your browser.
+The browser will open automatically. The default URL is **http://localhost:8888**, but if that port is in use, the server will automatically use the next available port (8889, 8890, etc.). Check the terminal output for the actual URL.
 
 > **Note:** You do NOT need to start Claude Code from the autocoder directory. Claude Code can be launched from anywhere - just provide the full path to the autocoder folder when running the start script.
 
@@ -100,7 +100,7 @@ start_ui.bat
 ./start_ui.sh
 ```
 
-This launches the React-based web UI at `http://localhost:8888` with:
+This launches the React-based web UI (default port 8888, auto-increments if busy) with:
 - Project selection and creation
 - Kanban board view of features
 - Real-time agent output streaming

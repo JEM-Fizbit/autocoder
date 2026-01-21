@@ -18,6 +18,8 @@ from typing import Awaitable, Callable, Literal, Set
 
 import psutil
 
+from server.services.process_registry import get_registry
+
 logger = logging.getLogger(__name__)
 
 # Patterns for sensitive data that should be redacted from output
@@ -84,6 +86,9 @@ class AgentProcessManager:
         # Lock file to prevent multiple instances (stored in project directory)
         self.lock_file = self.project_dir / ".agent.lock"
 
+        # Child process discovery task
+        self._child_discovery_task: asyncio.Task | None = None
+
     @property
     def status(self) -> Literal["stopped", "running", "paused", "crashed"]:
         return self._status
@@ -94,6 +99,11 @@ class AgentProcessManager:
         self._status = value
         if old_status != value:
             self._notify_status_change(value)
+            # Update registry status
+            if self.process:
+                registry = get_registry()
+                registry_status = "stopped" if value in ("stopped", "crashed") else value
+                registry.update_status(self.process.pid, registry_status)
 
     def _notify_status_change(self, status: str) -> None:
         """Notify all registered callbacks of status change."""
@@ -214,6 +224,61 @@ class AgentProcessManager:
                 elif self.status == "running":
                     self.status = "stopped"
                 self._remove_lock()
+                # Unregister from process registry
+                self._unregister_from_registry()
+
+    async def _discover_children_loop(self) -> None:
+        """Periodically discover and register child processes."""
+        registry = get_registry()
+        try:
+            while True:
+                await asyncio.sleep(5)  # Check every 5 seconds
+
+                if self.process and self.status == "running":
+                    # Discover new child processes
+                    registry.discover_children(self.process.pid, self.project_name)
+                    # Clean up dead processes
+                    registry.cleanup_dead_processes()
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"Child discovery error: {e}")
+
+    def _register_in_registry(self) -> None:
+        """Register the agent process in the central registry."""
+        if not self.process:
+            return
+
+        registry = get_registry()
+        cmdline = " ".join([
+            sys.executable,
+            "autonomous_agent_demo.py",
+            "--project-dir",
+            str(self.project_dir),
+        ])
+        if self.yolo_mode:
+            cmdline += " --yolo"
+        if self.model:
+            cmdline += f" --model {self.model}"
+
+        registry.register(
+            pid=self.process.pid,
+            name="agent",
+            project_name=self.project_name,
+            cmdline=cmdline,
+        )
+
+    def _unregister_from_registry(self) -> None:
+        """Unregister the agent and all its children from the registry."""
+        if not self.process:
+            return
+
+        registry = get_registry()
+        # Kill and unregister all children first
+        registry.kill_by_project(self.project_name, force=True)
+        # Unregister the main agent
+        registry.unregister(self.process.pid)
 
     async def start(self, yolo_mode: bool = False, model: str | None = None) -> tuple[bool, str]:
         """
@@ -266,8 +331,14 @@ class AgentProcessManager:
             self.started_at = datetime.now()
             self.status = "running"
 
+            # Register in process registry
+            self._register_in_registry()
+
             # Start output streaming task
             self._output_task = asyncio.create_task(self._stream_output())
+
+            # Start child process discovery task
+            self._child_discovery_task = asyncio.create_task(self._discover_children_loop())
 
             return True, f"Agent started with PID {self.process.pid}"
         except Exception as e:
@@ -292,6 +363,17 @@ class AgentProcessManager:
                     await self._output_task
                 except asyncio.CancelledError:
                     pass
+
+            # Cancel child discovery task
+            if self._child_discovery_task:
+                self._child_discovery_task.cancel()
+                try:
+                    await self._child_discovery_task
+                except asyncio.CancelledError:
+                    pass
+
+            # Unregister from process registry (kills children too)
+            self._unregister_from_registry()
 
             # Terminate gracefully first
             self.process.terminate()

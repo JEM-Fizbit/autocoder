@@ -20,6 +20,7 @@ from .routers import (
     assistant_chat_router,
     features_router,
     filesystem_router,
+    processes_router,
     projects_router,
     settings_router,
     spec_creation_router,
@@ -91,6 +92,7 @@ async def require_localhost(request: Request, call_next):
 app.include_router(projects_router)
 app.include_router(features_router)
 app.include_router(agent_router)
+app.include_router(processes_router)
 app.include_router(spec_creation_router)
 app.include_router(filesystem_router)
 app.include_router(assistant_chat_router)

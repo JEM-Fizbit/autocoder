@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { WSMessage, AgentStatus } from '../lib/types'
+import type { WSMessage, AgentStatus, ProjectProcesses } from '../lib/types'
 
 interface WebSocketState {
   progress: {
@@ -14,6 +14,7 @@ interface WebSocketState {
   }
   agentStatus: AgentStatus
   logs: Array<{ line: string; timestamp: string }>
+  processes: ProjectProcesses[]
   isConnected: boolean
 }
 
@@ -24,6 +25,7 @@ export function useProjectWebSocket(projectName: string | null) {
     progress: { passing: 0, in_progress: 0, total: 0, percentage: 0 },
     agentStatus: 'stopped',
     logs: [],
+    processes: [],
     isConnected: false,
   })
 
@@ -84,6 +86,13 @@ export function useProjectWebSocket(projectName: string | null) {
 
             case 'feature_update':
               // Feature updates will trigger a refetch via React Query
+              break
+
+            case 'process_update':
+              setState(prev => ({
+                ...prev,
+                processes: message.processes,
+              }))
               break
 
             case 'pong':

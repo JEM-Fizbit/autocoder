@@ -3,6 +3,7 @@ import { useProjects, useFeatures, useAgentStatus } from './hooks/useProjects'
 import { useProjectWebSocket } from './hooks/useWebSocket'
 import { useFeatureSound } from './hooks/useFeatureSound'
 import { useCelebration } from './hooks/useCelebration'
+import { useProcesses } from './hooks/useProcesses'
 
 const STORAGE_KEY = 'autocoder-selected-project'
 import { ProjectSelector } from './components/ProjectSelector'
@@ -17,6 +18,7 @@ import { AgentThought } from './components/AgentThought'
 import { AssistantFAB } from './components/AssistantFAB'
 import { AssistantPanel } from './components/AssistantPanel'
 import { SettingsModal } from './components/SettingsModal'
+import { ProcessPanel } from './components/ProcessPanel'
 import { Plus, Loader2, Settings } from 'lucide-react'
 import type { Feature } from './lib/types'
 
@@ -36,11 +38,34 @@ function App() {
   const [debugPanelHeight, setDebugPanelHeight] = useState(288) // Default height
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [processPanelOpen, setProcessPanelOpen] = useState(false)
 
   const { data: projects, isLoading: projectsLoading } = useProjects()
   const { data: features } = useFeatures(selectedProject)
   useAgentStatus(selectedProject) // Keep polling for status updates
   const wsState = useProjectWebSocket(selectedProject)
+
+  // Process management hook
+  const {
+    processes: apiProcesses,
+    processCount,
+    killProcess,
+    killAllProcesses,
+    pauseProcess,
+    resumeProcess,
+    isKillingAll,
+    handleProcessUpdate,
+  } = useProcesses()
+
+  // Use WebSocket processes if available, otherwise API processes
+  const processes = wsState.processes.length > 0 ? wsState.processes : apiProcesses
+
+  // Update process hook when WebSocket sends updates
+  useEffect(() => {
+    if (wsState.processes.length > 0) {
+      handleProcessUpdate({ type: 'process_update', processes: wsState.processes })
+    }
+  }, [wsState.processes, handleProcessUpdate])
 
   // Play sounds when features move between columns
   useFeatureSound(features)
@@ -101,10 +126,18 @@ function App() {
         setShowSettings(true)
       }
 
+      // P : Toggle process panel
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault()
+        setProcessPanelOpen(prev => !prev)
+      }
+
       // Escape : Close modals
       if (e.key === 'Escape') {
         if (showSettings) {
           setShowSettings(false)
+        } else if (processPanelOpen) {
+          setProcessPanelOpen(false)
         } else if (assistantOpen) {
           setAssistantOpen(false)
         } else if (showAddFeature) {
@@ -119,7 +152,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedProject, showAddFeature, selectedFeature, debugOpen, assistantOpen, showSettings])
+  }, [selectedProject, showAddFeature, selectedFeature, debugOpen, assistantOpen, showSettings, processPanelOpen])
 
   // Combine WebSocket progress with feature data
   const progress = wsState.progress.total > 0 ? wsState.progress : {
@@ -293,6 +326,19 @@ function App() {
       {showSettings && (
         <SettingsModal onClose={() => setShowSettings(false)} />
       )}
+
+      {/* Process Panel - shows all running processes */}
+      <ProcessPanel
+        processes={processes}
+        processCount={processCount}
+        isOpen={processPanelOpen}
+        onToggle={() => setProcessPanelOpen(!processPanelOpen)}
+        onKillProcess={killProcess}
+        onKillAll={killAllProcesses}
+        onPauseProcess={pauseProcess}
+        onResumeProcess={resumeProcess}
+        isKillingAll={isKillingAll}
+      />
     </div>
   )
 }

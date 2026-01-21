@@ -19,6 +19,11 @@ import type {
   Settings,
   SettingsUpdate,
   ModelsResponse,
+  ProjectProcesses,
+  ProcessInfo,
+  ProcessActionResponse,
+  KillAllResponse,
+  ProcessCount,
 } from './types'
 
 const API_BASE = '/api'
@@ -288,4 +293,57 @@ export async function updateSettings(settings: SettingsUpdate): Promise<Settings
     method: 'PATCH',
     body: JSON.stringify(settings),
   })
+}
+
+// ============================================================================
+// Processes API
+// ============================================================================
+
+export async function listAllProcesses(): Promise<ProjectProcesses[]> {
+  return fetchJSON('/processes')
+}
+
+export async function listProcessesFlat(): Promise<ProcessInfo[]> {
+  return fetchJSON('/processes/flat')
+}
+
+export async function listProjectProcesses(projectName: string): Promise<ProcessInfo[]> {
+  return fetchJSON(`/processes/project/${encodeURIComponent(projectName)}`)
+}
+
+export async function killProcess(pid: number, force: boolean = false): Promise<ProcessActionResponse> {
+  return fetchJSON(`/processes/${pid}/kill?force=${force}`, {
+    method: 'POST',
+  })
+}
+
+export async function killProjectProcesses(
+  projectName: string,
+  force: boolean = false
+): Promise<KillAllResponse> {
+  return fetchJSON(`/processes/project/${encodeURIComponent(projectName)}/kill?force=${force}`, {
+    method: 'POST',
+  })
+}
+
+export async function killAllProcesses(force: boolean = false): Promise<KillAllResponse> {
+  return fetchJSON(`/processes/kill-all?force=${force}`, {
+    method: 'POST',
+  })
+}
+
+export async function pauseProcess(pid: number): Promise<ProcessActionResponse> {
+  return fetchJSON(`/processes/${pid}/pause`, {
+    method: 'POST',
+  })
+}
+
+export async function resumeProcess(pid: number): Promise<ProcessActionResponse> {
+  return fetchJSON(`/processes/${pid}/resume`, {
+    method: 'POST',
+  })
+}
+
+export async function getProcessCount(): Promise<ProcessCount> {
+  return fetchJSON('/processes/count')
 }

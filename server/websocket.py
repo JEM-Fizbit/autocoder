@@ -16,6 +16,7 @@ from typing import Set
 from fastapi import WebSocket, WebSocketDisconnect
 
 from .services.process_manager import get_manager
+from .services.process_registry import get_registry
 
 # Lazy imports
 _count_passing_tests = None
@@ -143,6 +144,35 @@ async def poll_progress(websocket: WebSocket, project_name: str, project_dir: Pa
             break
 
 
+async def poll_processes(websocket: WebSocket, project_name: str):
+    """Poll process registry and send updates."""
+    registry = get_registry()
+    last_process_tree = None
+
+    while True:
+        try:
+            # Get current process tree
+            process_tree = registry.get_process_tree()
+
+            # Convert to JSON-serializable string for comparison
+            current_str = json.dumps(process_tree, sort_keys=True)
+
+            # Only send if changed
+            if current_str != last_process_tree:
+                last_process_tree = current_str
+                await websocket.send_json({
+                    "type": "process_update",
+                    "processes": process_tree,
+                })
+
+            await asyncio.sleep(5)  # Poll every 5 seconds
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"Process polling error: {e}")
+            break
+
+
 async def project_websocket(websocket: WebSocket, project_name: str):
     """
     WebSocket endpoint for project updates.
@@ -195,8 +225,9 @@ async def project_websocket(websocket: WebSocket, project_name: str):
     agent_manager.add_output_callback(on_output)
     agent_manager.add_status_callback(on_status_change)
 
-    # Start progress polling task
-    poll_task = asyncio.create_task(poll_progress(websocket, project_name, project_dir))
+    # Start polling tasks
+    progress_poll_task = asyncio.create_task(poll_progress(websocket, project_name, project_dir))
+    process_poll_task = asyncio.create_task(poll_processes(websocket, project_name))
 
     try:
         # Send initial status
@@ -215,6 +246,13 @@ async def project_websocket(websocket: WebSocket, project_name: str):
             "in_progress": in_progress,
             "total": total,
             "percentage": round(percentage, 1),
+        })
+
+        # Send initial process list
+        registry = get_registry()
+        await websocket.send_json({
+            "type": "process_update",
+            "processes": registry.get_process_tree(),
         })
 
         # Keep connection alive and handle incoming messages
@@ -237,10 +275,15 @@ async def project_websocket(websocket: WebSocket, project_name: str):
                 break
 
     finally:
-        # Clean up
-        poll_task.cancel()
+        # Clean up polling tasks
+        progress_poll_task.cancel()
+        process_poll_task.cancel()
         try:
-            await poll_task
+            await progress_poll_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await process_poll_task
         except asyncio.CancelledError:
             pass
 

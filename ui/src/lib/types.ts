@@ -107,8 +107,48 @@ export interface SetupStatus {
   npm: boolean
 }
 
+// ============================================================================
+// Process Types
+// ============================================================================
+
+export interface ProcessInfo {
+  pid: number
+  name: string
+  project_name: string
+  status: 'running' | 'paused' | 'stopped'
+  started_at: string
+  parent_pid: number | null
+  cmdline: string
+  children: ProcessInfo[]
+}
+
+export interface ProjectProcesses {
+  project_name: string
+  processes: ProcessInfo[]
+  total_count: number
+}
+
+export interface ProcessActionResponse {
+  success: boolean
+  message: string
+}
+
+export interface KillAllResponse {
+  killed: number
+  failed: number
+  message: string
+}
+
+export interface ProcessCount {
+  total: number
+  agents: number
+  browsers: number
+  mcp_servers: number
+  other: number
+}
+
 // WebSocket message types
-export type WSMessageType = 'progress' | 'feature_update' | 'log' | 'agent_status' | 'pong'
+export type WSMessageType = 'progress' | 'feature_update' | 'log' | 'agent_status' | 'pong' | 'process_update'
 
 export interface WSProgressMessage {
   type: 'progress'
@@ -139,12 +179,18 @@ export interface WSPongMessage {
   type: 'pong'
 }
 
+export interface WSProcessUpdateMessage {
+  type: 'process_update'
+  processes: ProjectProcesses[]
+}
+
 export type WSMessage =
   | WSProgressMessage
   | WSFeatureUpdateMessage
   | WSLogMessage
   | WSAgentStatusMessage
   | WSPongMessage
+  | WSProcessUpdateMessage
 
 // ============================================================================
 // Spec Chat Types

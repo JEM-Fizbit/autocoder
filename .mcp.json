@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "analyzer": {
+      "command": "uvx",
+      "args": ["mcp-server-analyzer"]
+    },
+    "eslint": {
+      "command": "npx",
+      "args": ["@eslint/mcp@latest"]
+    }
+  }
+}
