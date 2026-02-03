@@ -9,6 +9,14 @@ This is an autonomous coding agent system with a React-based UI. It uses the Cla
 1. **Initializer Agent** - First session reads an app spec and creates features in a SQLite database
 2. **Coding Agent** - Subsequent sessions implement features one by one, marking them as passing
 
+## Synced Protocols (via knowhub)
+
+Files in `docs/protocols/` are synced from the central [ai-knowledge](https://github.com/JEM-Fizbit/ai-knowledge) repo and **will be overwritten on commit**. To update a protocol: edit in `~/dev/ai-knowledge/protocols/`, push, then run `knowhub` here.
+
+**Protocols synced to this project:**
+- `CLAUDE_CODE_WEB_VS_TERMINAL.md` - Claude Code tool differences
+- `GIT_CONVENTIONS.md` - Commits, branches, PRs
+
 ## Commands
 
 ### Quick Start (Recommended)
