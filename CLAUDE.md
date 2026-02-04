@@ -1,202 +1,110 @@
-# CLAUDE.md
+# Autocoder - Autonomous Coding Agent
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+<!-- Last reviewed: 2026-02-04 -->
 
-## Project Overview
+Autonomous coding agent using Claude Agent SDK. Two-agent pattern:
+1. **Initializer Agent** - Reads app spec, creates features in SQLite
+2. **Coding Agent** - Implements features one by one
 
-This is an autonomous coding agent system with a React-based UI. It uses the Claude Agent SDK to build complete applications over multiple sessions using a two-agent pattern:
+---
 
-1. **Initializer Agent** - First session reads an app spec and creates features in a SQLite database
-2. **Coding Agent** - Subsequent sessions implement features one by one, marking them as passing
-
-## Synced Protocols (via knowhub)
-
-Files in `docs/protocols/` are synced from the central [ai-knowledge](https://github.com/JEM-Fizbit/ai-knowledge) repo and **will be overwritten on commit**. To update a protocol: edit in `~/dev/ai-knowledge/protocols/`, push, then run `knowhub` here.
-
-**Protocols synced to this project:**
-- `CLAUDE_CODE_WEB_VS_TERMINAL.md` - Claude Code tool differences
-- `GIT_CONVENTIONS.md` - Commits, branches, PRs
-
-## Commands
-
-### Quick Start (Recommended)
+## Quick Start
 
 ```bash
-# Windows - launches CLI menu
-start.bat
+# Windows
+start.bat          # CLI menu
+start_ui.bat       # Web UI
 
 # macOS/Linux
 ./start.sh
-
-# Launch Web UI (serves pre-built React app)
-start_ui.bat      # Windows
-./start_ui.sh     # macOS/Linux
+./start_ui.sh
 ```
 
-### Python Backend (Manual)
+---
 
-```bash
-# Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate  # Windows
-source venv/bin/activate  # macOS/Linux
+## Key Directories
 
-# Install dependencies
-pip install -r requirements.txt
+```
+Python Backend:
+├── start.py              # CLI launcher
+├── autonomous_agent_demo.py  # Agent entry point
+├── agent.py              # Session loop (Claude SDK)
+├── client.py             # SDK config + security hooks
+├── security.py           # Bash allowlist (ALLOWED_COMMANDS)
+└── prompts.py            # Prompt loading with fallback
 
-# Run the main CLI launcher
-python start.py
+Server API (server/routers/):
+├── projects.py           # Project CRUD
+├── features.py           # Feature management
+├── agent.py              # Start/stop/pause/resume
+└── spec_creation.py      # WebSocket for spec creation
 
-# Run agent directly for a project (use absolute path or registered name)
-python autonomous_agent_demo.py --project-dir C:/Projects/my-app
-python autonomous_agent_demo.py --project-dir my-app  # if registered
+React UI (ui/src/):
+├── App.tsx               # Main app + kanban
+├── hooks/useWebSocket.ts # Real-time updates
+└── components/           # FolderBrowser, NewProjectModal
 
-# YOLO mode: rapid prototyping without browser testing
-python autonomous_agent_demo.py --project-dir my-app --yolo
+MCP Server:
+└── mcp_server/feature_mcp.py  # Feature management tools
 ```
 
-### YOLO Mode (Rapid Prototyping)
+---
 
-YOLO mode skips all testing for faster feature iteration:
+## Project Registry
 
-```bash
-# CLI
-python autonomous_agent_demo.py --project-dir my-app --yolo
+Projects stored anywhere, registered in `~/.autocoder/registry.db`:
+- SQLite with SQLAlchemy ORM
+- POSIX paths for cross-platform
 
-# UI: Toggle the lightning bolt button before starting the agent
-```
+Each project contains:
+- `prompts/app_spec.txt` - Application spec (XML)
+- `prompts/*.md` - Agent prompts
+- `features.db` - Feature database
+- `.agent.lock` - Prevents multiple instances
 
-**What's different in YOLO mode:**
-- No regression testing (skips `feature_get_for_regression`)
-- No Playwright MCP server (browser automation disabled)
-- Features marked passing after lint/type-check succeeds
-- Faster iteration for prototyping
+---
 
-**What's the same:**
-- Lint and type-check still run to verify code compiles
-- Feature MCP server for tracking progress
-- All other development tools available
+## Security Model
 
-**When to use:** Early prototyping when you want to quickly scaffold features without verification overhead. Switch back to standard mode for production-quality development.
+Defense-in-depth in `client.py`:
+1. OS-level sandbox for bash
+2. Filesystem restricted to project directory
+3. Bash commands validated against `ALLOWED_COMMANDS`
 
-### React UI (in ui/ directory)
+---
 
-```bash
-cd ui
-npm install
-npm run dev      # Development server (hot reload)
-npm run build    # Production build (required for start_ui.bat)
-npm run lint     # Run ESLint
-```
+## MCP Tools (for agent)
 
-**Note:** The `start_ui.bat` script serves the pre-built UI from `ui/dist/`. After making UI changes, run `npm run build` in the `ui/` directory.
-
-## Architecture
-
-### Core Python Modules
-
-- `start.py` - CLI launcher with project creation/selection menu
-- `autonomous_agent_demo.py` - Entry point for running the agent
-- `agent.py` - Agent session loop using Claude Agent SDK
-- `client.py` - ClaudeSDKClient configuration with security hooks and MCP servers
-- `security.py` - Bash command allowlist validation (ALLOWED_COMMANDS whitelist)
-- `prompts.py` - Prompt template loading with project-specific fallback
-- `progress.py` - Progress tracking, database queries, webhook notifications
-- `registry.py` - Project registry for mapping names to paths (cross-platform)
-
-### Project Registry
-
-Projects can be stored in any directory. The registry maps project names to paths using SQLite:
-- **All platforms**: `~/.autocoder/registry.db`
-
-The registry uses:
-- SQLite database with SQLAlchemy ORM
-- POSIX path format (forward slashes) for cross-platform compatibility
-- SQLite's built-in transaction handling for concurrency safety
-
-### Server API (server/)
-
-The FastAPI server provides REST endpoints for the UI:
-
-- `server/routers/projects.py` - Project CRUD with registry integration
-- `server/routers/features.py` - Feature management
-- `server/routers/agent.py` - Agent control (start/stop/pause/resume)
-- `server/routers/filesystem.py` - Filesystem browser API with security controls
-- `server/routers/spec_creation.py` - WebSocket for interactive spec creation
-
-### Feature Management
-
-Features are stored in SQLite (`features.db`) via SQLAlchemy. The agent interacts with features through an MCP server:
-
-- `mcp_server/feature_mcp.py` - MCP server exposing feature management tools
-- `api/database.py` - SQLAlchemy models (Feature table with priority, category, name, description, steps, passes)
-
-MCP tools available to the agent:
 - `feature_get_stats` - Progress statistics
-- `feature_get_next` - Get highest-priority pending feature
-- `feature_get_for_regression` - Random passing features for regression testing
-- `feature_mark_passing` - Mark feature complete
-- `feature_skip` - Move feature to end of queue
-- `feature_create_bulk` - Initialize all features (used by initializer)
+- `feature_get_next` - Next pending feature
+- `feature_mark_passing` - Mark complete
+- `feature_skip` - Move to end of queue
 
-### React UI (ui/)
+---
 
-- Tech stack: React 18, TypeScript, TanStack Query, Tailwind CSS v4, Radix UI
-- `src/App.tsx` - Main app with project selection, kanban board, agent controls
-- `src/hooks/useWebSocket.ts` - Real-time updates via WebSocket
-- `src/hooks/useProjects.ts` - React Query hooks for API calls
-- `src/lib/api.ts` - REST API client
-- `src/lib/types.ts` - TypeScript type definitions
-- `src/components/FolderBrowser.tsx` - Server-side filesystem browser for project folder selection
-- `src/components/NewProjectModal.tsx` - Multi-step project creation wizard
+## YOLO Mode
 
-### Project Structure for Generated Apps
+Skip testing for rapid prototyping:
+```bash
+python autonomous_agent_demo.py --project-dir my-app --yolo
+```
+- No regression testing
+- No Playwright
+- Features pass after lint/type-check
 
-Projects can be stored in any directory (registered in `~/.autocoder/registry.db`). Each project contains:
-- `prompts/app_spec.txt` - Application specification (XML format)
-- `prompts/initializer_prompt.md` - First session prompt
-- `prompts/coding_prompt.md` - Continuation session prompt
-- `features.db` - SQLite database with feature test cases
-- `.agent.lock` - Lock file to prevent multiple agent instances
+---
 
-### Security Model
+## Quick Reference
 
-Defense-in-depth approach configured in `client.py`:
-1. OS-level sandbox for bash commands
-2. Filesystem restricted to project directory only
-3. Bash commands validated against `ALLOWED_COMMANDS` in `security.py`
+| Need | Location |
+|------|----------|
+| Slash commands | `.claude/commands/` |
+| Skills | `.claude/skills/` |
+| Prompt templates | `.claude/templates/` |
+| Protocols | `docs/protocols/` |
 
-## Claude Code Integration
+---
 
-- `.claude/commands/create-spec.md` - `/create-spec` slash command for interactive spec creation
-- `.claude/skills/frontend-design/SKILL.md` - Skill for distinctive UI design
-- `.claude/templates/` - Prompt templates copied to new projects
+## Synced Protocols
 
-## Key Patterns
-
-### Prompt Loading Fallback Chain
-
-1. Project-specific: `{project_dir}/prompts/{name}.md`
-2. Base template: `.claude/templates/{name}.template.md`
-
-### Agent Session Flow
-
-1. Check if `features.db` has features (determines initializer vs coding agent)
-2. Create ClaudeSDKClient with security settings
-3. Send prompt and stream response
-4. Auto-continue with 3-second delay between sessions
-
-### Real-time UI Updates
-
-The UI receives updates via WebSocket (`/ws/projects/{project_name}`):
-- `progress` - Test pass counts
-- `agent_status` - Running/paused/stopped/crashed
-- `log` - Agent output lines (streamed from subprocess stdout)
-- `feature_update` - Feature status changes
-
-### Design System
-
-The UI uses a **neobrutalism** design with Tailwind CSS v4:
-- CSS variables defined in `ui/src/styles/globals.css` via `@theme` directive
-- Custom animations: `animate-slide-in`, `animate-pulse-neo`, `animate-shimmer`
-- Color tokens: `--color-neo-pending` (yellow), `--color-neo-progress` (cyan), `--color-neo-done` (green)
+Check `docs/protocols/` for: Claude Code Web vs Terminal, Git Conventions.
